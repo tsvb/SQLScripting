@@ -20,9 +20,9 @@ BEGIN
     END
 
     ------------------------------------------------------------------------
-    -- 2) Prepare parameter‐definition string for sp_executesql
+    -- 2) Prepare parameter-definition string for sp_executesql
     ------------------------------------------------------------------------
-    DECLARE @paramDef NVARCHAR(MAX) = 
+    DECLARE @paramDef NVARCHAR(MAX) =
         N'@MinRowCount BIGINT,
           @MinModificationPct DECIMAL(10,4),
           @ExecuteUpdates BIT,
@@ -36,13 +36,12 @@ BEGIN
     DECLARE @sql NVARCHAR(MAX);
 
     SET @sql =
-        -- Start of quoted literal for the inner batch
-        N'
+        N'USE ' + QUOTENAME(@DatabaseName) + N';
         SET NOCOUNT ON;
 
-        ----------------------------------------------------------------
+        ---------------------------------------------------------------
         -- Gather metadata for candidate statistics
-        ----------------------------------------------------------------
+        ---------------------------------------------------------------
         ;WITH CandidateStats AS
         (
             SELECT
@@ -55,20 +54,20 @@ BEGIN
                 sp.modification_counter       AS Modifications,
                 sp.last_updated               AS LastUpdated,
                 CAST(
-                    CASE 
+                    CASE
                         WHEN ps.row_count = 0 THEN 0
                         ELSE (100.0 * sp.modification_counter) / ps.row_count
-                    END 
+                    END
                     AS DECIMAL(19,4)
                 )                              AS PercentModified
-            FROM   ' + QUOTENAME(@DatabaseName) + N'.sys.schemas     AS s
-            JOIN   ' + QUOTENAME(@DatabaseName) + N'.sys.tables      AS t ON t.schema_id = s.schema_id
-            JOIN   ' + QUOTENAME(@DatabaseName) + N'.sys.stats       AS st ON st.object_id = t.object_id
-            OUTER APPLY ' + QUOTENAME(@DatabaseName) + N'.sys.dm_db_stats_properties(st.object_id, st.stats_id) AS sp
-            JOIN 
+            FROM   sys.schemas     AS s
+            JOIN   sys.tables      AS t ON t.schema_id = s.schema_id
+            JOIN   sys.stats       AS st ON st.object_id = t.object_id
+            OUTER APPLY sys.dm_db_stats_properties(st.object_id, st.stats_id) AS sp
+            JOIN
             (
                 SELECT object_id, SUM(row_count) AS row_count
-                FROM   ' + QUOTENAME(@DatabaseName) + N'.sys.dm_db_partition_stats
+                FROM   sys.dm_db_partition_stats
                 WHERE  index_id IN (0,1)  -- heap or clustered index
                 GROUP BY object_id
             ) AS ps ON ps.object_id = t.object_id
@@ -83,9 +82,9 @@ BEGIN
             SELECT
                 SchemaName,
                 TableName,
-                CASE 
-                    WHEN @Granularity = ''STAT'' THEN QUOTENAME(StatsName) 
-                    ELSE NULL 
+                CASE
+                    WHEN @Granularity = ''STAT'' THEN QUOTENAME(StatsName)
+                    ELSE NULL
                 END                        AS StatsName,
                 MAX(CurrentRows)           AS CurrentRows,
                 MAX(PercentModified)       AS PercentModified,
@@ -106,26 +105,26 @@ BEGIN
                 PercentModified,
                 LastUpdated,
                 -- Build the UPDATE STATISTICS statement
-                N''UPDATE STATISTICS '' 
-                    + QUOTENAME(SchemaName) + N''.'' + QUOTENAME(TableName) 
-                    + CASE 
-                          WHEN StatsName IS NOT NULL 
-                          THEN N'' '' + StatsName 
-                          ELSE N'''' 
+                N''UPDATE STATISTICS ''
+                    + QUOTENAME(SchemaName) + N''.'' + QUOTENAME(TableName)
+                    + CASE
+                          WHEN StatsName IS NOT NULL
+                          THEN N'' '' + StatsName
+                          ELSE N''''
                       END
-                    + N'' WITH '' 
-                    + CASE 
-                          WHEN @UseFullScan = 1 THEN N''FULLSCAN'' 
-                          ELSE N''RESAMPLE'' 
+                    + N'' WITH ''
+                    + CASE
+                          WHEN @UseFullScan = 1 THEN N''FULLSCAN''
+                          ELSE N''RESAMPLE''
                       END
-                    + N'';'' 
+                    + N'';''
                 AS UpdateCommand
             FROM TargetObjects
         )
 
-        ----------------------------------------------------------------
+        ---------------------------------------------------------------
         -- Store commands in temp table and optionally execute
-        ----------------------------------------------------------------
+        ---------------------------------------------------------------
         SELECT *
         INTO   #ExecList
         FROM   Commands;
@@ -164,8 +163,7 @@ BEGIN
             LastUpdated,
             UpdateCommand,
             @ExecuteUpdates AS Executed
-        FROM #ExecList;
-        '  -- End of the inner quoted batch
+        FROM #ExecList;';
 
     ------------------------------------------------------------------------
     -- 4) Execute the assembled batch via sp_executesql
