@@ -167,24 +167,6 @@ BEGIN
         FROM #ExecList;
         '  -- End of the inner quoted batch
 
-    -- 4) At this point @sql is: 
-    --      N'   <inner batch with doubled quotes>   '
-    --    Next we close that literal and append the parameter-definition and assignments.
-
-    SET @sql = @sql
-        + N','  -- close the inner batch literal, start parameter-definition literal
-        + N'@MinRowCount BIGINT,
-          @MinModificationPct DECIMAL(10,4),
-          @ExecuteUpdates BIT,
-          @UseFullScan BIT,
-          @Granularity CHAR(5)'
-        -- 5) Now append the parameter assignments (outside the quoted literal)
-        + N', @MinRowCount='       + CAST(@MinRowCount        AS NVARCHAR(20))
-        + N', @MinModificationPct=' + CAST(@MinModificationPct AS NVARCHAR(20))
-        + N', @ExecuteUpdates='     + CAST(@ExecuteUpdates     AS NVARCHAR(5))
-        + N', @UseFullScan='        + CAST(@UseFullScan        AS NVARCHAR(5))
-        + N', @Granularity='        + QUOTENAME(@Granularity, '''');  -- embed the single quotes around @Granularity
-
     ------------------------------------------------------------------------
     -- 6) Execute the assembled batch via sp_executesql
     ------------------------------------------------------------------------
